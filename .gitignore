@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+localstorage-react-hook/node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+localstorage-react-hook/build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite cache
+.vite/
+
+# Editor directories and files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db

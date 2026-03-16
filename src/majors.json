@@ -1,0 +1,93 @@
+{
+  "Business and Management": [
+    "Accounting",
+    "Business Administration",
+    "Finance",
+    "Marketing",
+    "Management",
+    "International Business",
+    "Human Resources",
+    "Entrepreneurship"
+  ],
+  "Natural Sciences": [
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Mathematics",
+    "Environmental Science",
+    "Geology",
+    "Earth Science"
+  ],
+  "Computer and Information Sciences": [
+    "Computer Science",
+    "Software Engineering",
+    "Information Technology",
+    "Information Systems",
+    "Data Science",
+    "Cybersecurity"
+  ],
+  "Health Professions": [
+    "Nursing",
+    "Public Health",
+    "Health Sciences",
+    "Kinesiology",
+    "Exercise Science",
+    "Pre-Med (Track)"
+  ],
+  "Social Sciences": [
+    "Psychology",
+    "Sociology",
+    "Political Science",
+    "Economics",
+    "Anthropology",
+    "Criminal Justice",
+    "International Relations"
+  ],
+  "Humanities": [
+    "English",
+    "History",
+    "Philosophy",
+    "Foreign Languages",
+    "Communications"
+  ],
+  "Arts and Creative Fields": [
+    "Fine Arts",
+    "Graphic Design",
+    "Music",
+    "Theatre",
+    "Drama",
+    "Film Studies",
+    "Media Studies"
+  ],
+  "Engineering": [
+    "Mechanical Engineering",
+    "Civil Engineering",
+    "Electrical Engineering",
+    "Chemical Engineering",
+    "Computer Engineering"
+  ],
+  "Education": [
+    "Elementary Education",
+    "Secondary Education",
+    "Early Childhood Education",
+    "Special Education"
+  ],
+  "Interdisciplinary and Other Fields": [
+    "Environmental Studies",
+    "Urban Studies",
+    "American Studies"
+  ],
+  "Very Widely Offered Majors": [
+    "Business Administration",
+    "Biology",
+    "Psychology",
+    "English",
+    "History",
+    "Political Science",
+    "Sociology",
+    "Mathematics",
+    "Computer Science",
+    "Communications",
+    "Nursing"
+  ]
+}

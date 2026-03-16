@@ -22,8 +22,23 @@ type SimulationNode = BubbleDatum & {
 };
 
 const defaultPalette = ['#2563eb', '#059669', '#f59e0b', '#7c3aed', '#ef4444', '#0ea5e9'];
+const CHART_INNER_PADDING = 16;
+const LOGO_BASE_URL = 'https://financialmodelingprep.com/image-stock';
 
-export default function GroupedBubbleChart({ data, height = 560, className }: GroupedBubbleChartProps) {
+const buildLogoUrl = (ticker: string): string => `${LOGO_BASE_URL}/${encodeURIComponent(ticker.toUpperCase())}.png`;
+
+const sanitizeId = (value: string): string => value.replace(/[^a-zA-Z0-9_-]/g, '-');
+
+const loadLogo = (url: string): Promise<boolean> =>
+    new Promise((resolve) => {
+        const logoImage = new Image();
+        logoImage.crossOrigin = 'anonymous';
+        logoImage.onload = () => resolve(true);
+        logoImage.onerror = () => resolve(false);
+        logoImage.src = url;
+    });
+
+export default function GroupedBubbleChart({ data, height = 640, className }: GroupedBubbleChartProps) {
     const chartContainerRef = useRef<HTMLDivElement | null>(null);
     const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -37,11 +52,11 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
         const container = chartContainerRef.current;
         const svg = d3.select(svgRef.current);
         const colorScale = d3.scaleOrdinal<string>().domain(groups).range(defaultPalette);
+        let destroyed = false;
+        let logoAvailabilityByTicker = new Map<string, boolean>();
 
         const draw = () => {
             const width = Math.max(container.clientWidth, 300);
-            const horizontalPadding = 80;
-            const clusterY = height / 2 + 24;
 
             svg.selectAll('*').remove();
             svg.attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
@@ -49,13 +64,27 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
             const maxValue = d3.max(data, (item) => item.value) ?? 100;
             const minValue = d3.min(data, (item) => item.value) ?? 0;
             const radiusScale = d3.scaleSqrt().domain([Math.max(0, minValue), maxValue]).range([22, 54]);
+            const maxRadius = d3.max(data, (item) => radiusScale(item.value)) ?? 54;
+
+            const headingY = 40;
+            const clusterTopBoundary = headingY + 18 + maxRadius;
+            const clusterBottomBoundary = height - CHART_INNER_PADDING - maxRadius;
+            const clusterY = (clusterTopBoundary + clusterBottomBoundary) / 2;
+
+            const horizontalPadding = CHART_INNER_PADDING + maxRadius;
+            const minX = horizontalPadding;
+            const maxX = width - horizontalPadding;
+            const minY = clusterTopBoundary;
+            const maxY = clusterBottomBoundary;
+
+            const defs = svg.append('defs');
 
             const groupCenters = new Map<string, number>();
             groups.forEach((group, index) => {
                 const x =
                     groups.length === 1
                         ? width / 2
-                        : horizontalPadding + (index * (width - horizontalPadding * 2)) / (groups.length - 1);
+                        : horizontalPadding + (index * (Math.max(width - horizontalPadding * 2, 1))) / (groups.length - 1);
                 groupCenters.set(group, x);
             });
 
@@ -67,6 +96,31 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
                 vy: 0,
                 r: radiusScale(item.value),
             }));
+
+            nodes.forEach((node) => {
+                const ticker = node.name.toUpperCase();
+                if (!logoAvailabilityByTicker.get(ticker)) {
+                    return;
+                }
+
+                const patternId = `logo-pattern-${sanitizeId(ticker)}`;
+                const pattern = defs
+                    .append('pattern')
+                    .attr('id', patternId)
+                    .attr('patternUnits', 'objectBoundingBox')
+                    .attr('width', 1)
+                    .attr('height', 1);
+
+                pattern
+                    .append('image')
+                    .attr('href', buildLogoUrl(ticker))
+                    .attr('width', node.r * 2)
+                    .attr('height', node.r * 2)
+                    .attr('x', 0)
+                    .attr('y', 0)
+                    .attr('preserveAspectRatio', 'xMidYMid slice')
+                    .attr('crossorigin', 'anonymous');
+            });
 
             const clusterForce = (alpha: number) => {
                 const strength = 0.42 * alpha;
@@ -98,7 +152,7 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
                 .enter()
                 .append('text')
                 .attr('x', (group: string) => groupCenters.get(group) ?? width / 2)
-                .attr('y', 56)
+                .attr('y', headingY)
                 .attr('text-anchor', 'middle')
                 .attr('fill', (group: string) => colorScale(group))
                 .attr('font-size', 16)
@@ -110,13 +164,18 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
             bubbles
                 .append('circle')
                 .attr('r', (node: SimulationNode) => node.r)
-                .attr('fill', (node: SimulationNode) => colorScale(node.group))
-                .attr('fill-opacity', 0.86)
+                .attr('fill', (node: SimulationNode) => {
+                    const ticker = node.name.toUpperCase();
+                    const patternId = `logo-pattern-${sanitizeId(ticker)}`;
+                    return logoAvailabilityByTicker.get(ticker) ? `url(#${patternId})` : colorScale(node.group);
+                })
+                .attr('fill-opacity', (node: SimulationNode) => (logoAvailabilityByTicker.get(node.name.toUpperCase()) ? 1 : 0.86))
                 .attr('stroke', '#0f172a')
                 .attr('stroke-opacity', 0.3)
                 .attr('stroke-width', 1.2);
 
             bubbles
+                .filter((node: SimulationNode) => logoAvailabilityByTicker.get(node.name.toUpperCase()) !== true)
                 .append('text')
                 .text((node: SimulationNode) => node.name)
                 .attr('text-anchor', 'middle')
@@ -128,15 +187,20 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
 
             bubbles
                 .append('text')
-                .text((node: SimulationNode) => `${node.value}`)
+                .text((node: SimulationNode) => `${node.value.toFixed(2)}%`)
                 .attr('text-anchor', 'middle')
-                .attr('dy', '1.1em')
-                .attr('fill', '#e2e8f0')
-                .attr('font-size', 11)
+                .attr('dy', '1.25em')
+                .attr('fill', '#f8fafc')
+                .attr('font-size', 10)
                 .attr('font-weight', 500)
                 .attr('pointer-events', 'none');
 
             simulation.on('tick', () => {
+                nodes.forEach((node) => {
+                    node.x = Math.max(minX, Math.min(maxX, node.x));
+                    node.y = Math.max(minY, Math.min(maxY, node.y));
+                });
+
                 bubbles.attr('transform', (node: SimulationNode) => `translate(${node.x}, ${node.y})`);
             });
 
@@ -145,7 +209,27 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
             };
         };
 
+        const prepareLogoAvailability = async () => {
+            const uniqueTickers = [...new Set(data.map((item) => item.name.toUpperCase()))];
+            const logoChecks = await Promise.all(
+                uniqueTickers.map(async (ticker) => ({
+                    ticker,
+                    isAvailable: await loadLogo(buildLogoUrl(ticker)),
+                }))
+            );
+
+            if (destroyed) {
+                return;
+            }
+
+            logoAvailabilityByTicker = new Map(logoChecks.map((entry) => [entry.ticker, entry.isAvailable]));
+            stopSimulation();
+            stopSimulation = draw();
+        };
+
         let stopSimulation = draw();
+        void prepareLogoAvailability();
+
         const observer = new ResizeObserver(() => {
             stopSimulation();
             stopSimulation = draw();
@@ -154,6 +238,7 @@ export default function GroupedBubbleChart({ data, height = 560, className }: Gr
         observer.observe(container);
 
         return () => {
+            destroyed = true;
             observer.disconnect();
             stopSimulation();
             svg.selectAll('*').remove();

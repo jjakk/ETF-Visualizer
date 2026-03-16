@@ -1,28 +1,99 @@
+import { type FormEvent, useState } from 'react';
+import { Button } from 'primereact/button';
+import { InputText } from 'primereact/inputtext';
+import { Message } from 'primereact/message';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import GroupedBubbleChart, { type BubbleDatum } from '../components/GroupedBubbleChart';
+import { fetchEtfHoldingsFromGemini } from '../services/geminiHoldings';
 
-const bubbleData: BubbleDatum[] = [
-    { name: 'VOO', group: 'Large Cap', value: 95 },
-    { name: 'IVV', group: 'Large Cap', value: 88 },
-    { name: 'SPY', group: 'Large Cap', value: 100 },
-    { name: 'QQQ', group: 'Growth', value: 92 },
-    { name: 'VUG', group: 'Growth', value: 78 },
-    { name: 'SCHG', group: 'Growth', value: 70 },
-    { name: 'VTI', group: 'Broad Market', value: 90 },
-    { name: 'ITOT', group: 'Broad Market', value: 72 },
-    { name: 'SCHB', group: 'Broad Market', value: 62 },
-    { name: 'VXUS', group: 'International', value: 60 },
-    { name: 'VEA', group: 'International', value: 56 },
-    { name: 'VWO', group: 'International', value: 50 },
+const defaultBubbleData: BubbleDatum[] = [
+    { name: 'AAPL', group: 'Technology', value: 7.2 },
+    { name: 'MSFT', group: 'Technology', value: 6.8 },
+    { name: 'NVDA', group: 'Technology', value: 5.4 },
+    { name: 'AMZN', group: 'Consumer Discretionary', value: 3.6 },
+    { name: 'META', group: 'Communication Services', value: 2.9 },
+    { name: 'GOOGL', group: 'Communication Services', value: 2.5 },
 ];
 
 export default function HomePage() {
+    const [ticker, setTicker] = useState('VOO');
+    const [apiKey, setApiKey] = useState('');
+    const [chartData, setChartData] = useState<BubbleDatum[]>(defaultBubbleData);
+    const [fundTitle, setFundTitle] = useState('Sample Holdings');
+    const [isLoading, setIsLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
+
+    const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        setErrorMessage('');
+
+        if (!ticker.trim() || !apiKey.trim()) {
+            setErrorMessage('Please provide both an ETF ticker and Gemini API key.');
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const response = await fetchEtfHoldingsFromGemini({ ticker, apiKey });
+            const nextData: BubbleDatum[] = response.holdings.map((holding) => ({
+                name: holding.ticker,
+                group: holding.sector || 'Other',
+                value: holding.weightPercent,
+            }));
+
+            setChartData(nextData);
+            setFundTitle(`${response.fundName} (${response.ticker})`);
+        } catch (error) {
+            setErrorMessage(error instanceof Error ? error.message : 'Unable to fetch ETF holdings.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="mx-auto w-full max-w-6xl px-4 py-8">
-            <h1 className="mb-2 text-center">ETF Bubble Groups</h1>
+            <h1 className="mb-2 text-center">ETF Holdings Bubble Chart</h1>
             <p className="mb-6 text-center text-slate-700">
-                Bubble size represents relative value and color represents ETF grouping.
+                Enter a ticker and Gemini API key to visualize ETF holdings by sector.
             </p>
-            <GroupedBubbleChart data={bubbleData} />
+
+            <form onSubmit={onSubmit} className="mb-6 grid gap-4 rounded-xl bg-white p-4 shadow-sm md:grid-cols-[1fr_2fr_auto] md:items-end">
+                <span className="p-float-label">
+                    <InputText
+                        id="ticker"
+                        value={ticker}
+                        onChange={(event) => setTicker(event.target.value.toUpperCase())}
+                        autoComplete="off"
+                    />
+                    <label htmlFor="ticker">ETF Ticker (e.g. VOO)</label>
+                </span>
+
+                <span className="p-float-label">
+                    <InputText
+                        id="gemini-api-key"
+                        value={apiKey}
+                        onChange={(event) => setApiKey(event.target.value)}
+                        type="password"
+                        autoComplete="off"
+                    />
+                    <label htmlFor="gemini-api-key">Gemini API Key</label>
+                </span>
+
+                <Button type="submit" label={isLoading ? 'Loading...' : 'Load Holdings'} disabled={isLoading} />
+            </form>
+
+            {errorMessage && <Message severity="error" text={errorMessage} className="mb-4 w-full" />}
+
+            <div className="mb-2 text-center text-lg font-semibold text-slate-800">{fundTitle}</div>
+
+            {isLoading ? (
+                <div className="flex min-h-[320px] items-center justify-center rounded-xl bg-white shadow-sm">
+                    <ProgressSpinner strokeWidth="4" />
+                </div>
+            ) : (
+                <GroupedBubbleChart data={chartData} />
+            )}
         </div>
     );
 }

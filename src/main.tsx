@@ -4,6 +4,8 @@ import './index.css';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { PrimeReactProvider } from 'primereact/api';
 import 'primeicons/primeicons.css';
+import 'primereact/resources/themes/lara-light-blue/theme.css';
+import 'primereact/resources/primereact.min.css';
 import HomePage from './pages/HomePage';
 
 let router = createBrowserRouter([

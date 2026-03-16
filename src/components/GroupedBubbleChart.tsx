@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import { DEFAULT_SECTOR_PALETTE } from './chartColors';
 
 export type BubbleDatum = {
     ticker: string;
@@ -12,6 +13,7 @@ type GroupedBubbleChartProps = {
     data: BubbleDatum[];
     height?: number;
     className?: string;
+    sectorColorMap?: Record<string, string>;
 };
 
 type SimulationNode = BubbleDatum & {
@@ -28,7 +30,6 @@ type LogoMeta = {
     averageColor?: string;
 };
 
-const defaultPalette = ['#2563eb', '#059669', '#f59e0b', '#7c3aed', '#ef4444', '#0ea5e9'];
 const CHART_INNER_PADDING = 16;
 const LOGO_BASE_URL = 'https://financialmodelingprep.com/image-stock';
 
@@ -100,7 +101,7 @@ const loadLogoMeta = (url: string): Promise<LogoMeta> =>
         logoImage.src = url;
     });
 
-export default function GroupedBubbleChart({ data, height = 640, className }: GroupedBubbleChartProps) {
+export default function GroupedBubbleChart({ data, height = 640, className, sectorColorMap }: GroupedBubbleChartProps) {
     const chartContainerRef = useRef<HTMLDivElement | null>(null);
     const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -113,7 +114,10 @@ export default function GroupedBubbleChart({ data, height = 640, className }: Gr
 
         const container = chartContainerRef.current;
         const svg = d3.select(svgRef.current);
-        const colorScale = d3.scaleOrdinal<string>().domain(groups).range(defaultPalette);
+        const resolvedPalette = groups.map((group, index) => {
+            return sectorColorMap?.[group] ?? DEFAULT_SECTOR_PALETTE[index % DEFAULT_SECTOR_PALETTE.length];
+        });
+        const colorScale = d3.scaleOrdinal<string, string>().domain(groups).range(resolvedPalette);
         let destroyed = false;
         let logoMetaByTicker = new Map<string, LogoMeta>();
         let tooltipSelection = d3
@@ -134,117 +138,35 @@ export default function GroupedBubbleChart({ data, height = 640, className }: Gr
             const radiusScale = d3.scaleSqrt().domain([Math.max(0, minValue), maxValue]).range([22, 54]);
             const maxRadius = d3.max(data, (item) => radiusScale(item.value)) ?? 54;
 
-            const headingY = 40;
-            const clusterTopBoundary = headingY + 18 + maxRadius;
-            const clusterBottomBoundary = height - CHART_INNER_PADDING - maxRadius;
-            const clusterY = (clusterTopBoundary + clusterBottomBoundary) / 2;
+            const clusterX = width / 2;
+            const clusterY = height / 2;
 
             const horizontalPadding = CHART_INNER_PADDING + maxRadius;
             const minX = horizontalPadding;
             const maxX = width - horizontalPadding;
-            const minY = clusterTopBoundary;
-            const maxY = clusterBottomBoundary;
+            const minY = CHART_INNER_PADDING + maxRadius;
+            const maxY = height - CHART_INNER_PADDING - maxRadius;
 
             const defs = svg.append('defs');
-
-            const groupCenters = new Map<string, number>();
-            groups.forEach((group, index) => {
-                const x =
-                    groups.length === 1
-                        ? width / 2
-                        : horizontalPadding + (index * (Math.max(width - horizontalPadding * 2, 1))) / (groups.length - 1);
-                groupCenters.set(group, x);
-            });
 
             const nodes: SimulationNode[] = data.map((item) => ({
                 ...item,
                 nodeId: `${sanitizeId(item.ticker)}-${sanitizeId(item.group)}`,
-                x: groupCenters.get(item.group) ?? width / 2,
+                x: clusterX + (Math.random() - 0.5) * Math.min(width * 0.35, 220),
                 y: clusterY,
                 vx: 0,
                 vy: 0,
                 r: radiusScale(item.value),
             }));
 
-            const laneGroup = svg.append('g').attr('opacity', 0.18);
-            groups.forEach((group, index) => {
-                const centerX = groupCenters.get(group) ?? width / 2;
-                const prevCenter = index > 0 ? groupCenters.get(groups[index - 1]) ?? minX : minX;
-                const nextCenter = index < groups.length - 1 ? groupCenters.get(groups[index + 1]) ?? maxX : maxX;
-                const leftX = index === 0 ? minX : (prevCenter + centerX) / 2;
-                const rightX = index === groups.length - 1 ? maxX : (centerX + nextCenter) / 2;
-
-                laneGroup
-                    .append('rect')
-                    .attr('x', leftX)
-                    .attr('y', headingY + 8)
-                    .attr('width', Math.max(0, rightX - leftX))
-                    .attr('height', Math.max(0, maxY - headingY - 8))
-                    .attr('fill', colorScale(group));
-            });
-
-            svg
-                .append('g')
-                .attr('opacity', 0.35)
-                .selectAll('line')
-                .data(groups.slice(0, -1))
-                .enter()
-                .append('line')
-                .attr('x1', (_group, index) => {
-                    const currentCenter = groupCenters.get(groups[index]) ?? width / 2;
-                    const nextCenter = groupCenters.get(groups[index + 1]) ?? width / 2;
-                    return (currentCenter + nextCenter) / 2;
-                })
-                .attr('x2', (_group, index) => {
-                    const currentCenter = groupCenters.get(groups[index]) ?? width / 2;
-                    const nextCenter = groupCenters.get(groups[index + 1]) ?? width / 2;
-                    return (currentCenter + nextCenter) / 2;
-                })
-                .attr('y1', headingY + 8)
-                .attr('y2', maxY)
-                .attr('stroke', '#334155')
-                .attr('stroke-width', 1.5)
-                .attr('stroke-dasharray', '6 4');
-
-            const clusterForce = (alpha: number) => {
-                const strength = 0.42 * alpha;
-                nodes.forEach((node) => {
-                    const targetX = groupCenters.get(node.group) ?? width / 2;
-                    node.vx += (targetX - node.x) * strength;
-                    node.vy += (clusterY - node.y) * strength;
-                });
-            };
-
             const simulation = d3
                 .forceSimulation<SimulationNode>(nodes)
-                .force(
-                    'x',
-                    d3
-                        .forceX<SimulationNode>((node: SimulationNode) => groupCenters.get(node.group) ?? width / 2)
-                        .strength(0.5)
-                )
-                .force('y', d3.forceY<SimulationNode>(clusterY).strength(0.4))
-                .force('cluster', clusterForce)
+                .force('x', d3.forceX<SimulationNode>(clusterX).strength(0.16))
+                .force('y', d3.forceY<SimulationNode>(clusterY).strength(0.14))
+                .force('center', d3.forceCenter<SimulationNode>(clusterX, clusterY).strength(0.08))
                 .force('collide', d3.forceCollide<SimulationNode>((node: SimulationNode) => node.r + 1.5).strength(1))
                 .alpha(1)
                 .alphaDecay(0.03);
-
-            svg
-                .append('g')
-                .selectAll('text')
-                .data(groups)
-                .enter()
-                .append('text')
-                .attr('x', (group: string) => groupCenters.get(group) ?? width / 2)
-                .attr('y', headingY)
-                .attr('text-anchor', 'middle')
-                .attr('fill', (group: string) => colorScale(group))
-                .attr('font-size', 15)
-                .attr('font-weight', 800)
-                .attr('paint-order', 'stroke')
-                .attr('stroke', '#ffffff')
-                .attr('stroke-width', 3)
-                .text((group: string) => group);
 
             const bubbles = svg.append('g').selectAll('g').data(nodes).enter().append('g');
 
@@ -259,9 +181,9 @@ export default function GroupedBubbleChart({ data, height = 640, className }: Gr
                 .append('circle')
                 .attr('r', (node: SimulationNode) => node.r)
                 .attr('fill', (node: SimulationNode) => d3.color(colorScale(node.group))?.copy({ opacity: 0.28 })?.toString() ?? '#cbd5e1')
-                .attr('stroke', '#0f172a')
-                .attr('stroke-opacity', 0.35)
-                .attr('stroke-width', 1.4);
+                .attr('stroke', (node: SimulationNode) => colorScale(node.group))
+                .attr('stroke-opacity', 0.85)
+                .attr('stroke-width', 2.2);
 
             logoBubbles
                 .append('circle')
@@ -398,7 +320,7 @@ export default function GroupedBubbleChart({ data, height = 640, className }: Gr
             tooltipSelection.remove();
             svg.selectAll('*').remove();
         };
-    }, [data, groups, height]);
+    }, [data, groups, height, sectorColorMap]);
 
     return (
         <div ref={chartContainerRef} className={className ?? 'relative w-full rounded-xl bg-white p-4 shadow-sm'}>

@@ -1,9 +1,12 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import { Button } from 'primereact/button';
+import { Dropdown } from 'primereact/dropdown';
 import { InputText } from 'primereact/inputtext';
 import { Message } from 'primereact/message';
 import { ProgressSpinner } from 'primereact/progressspinner';
+import HoldingsTreemap from '../components/HoldingsTreemap';
 import GroupedBubbleChart, { type BubbleDatum } from '../components/GroupedBubbleChart';
+import { buildSectorColorMap } from '../components/chartColors';
 import { fetchEtfHoldingsFromGemini } from '../services/geminiHoldings';
 
 const defaultBubbleData: BubbleDatum[] = [
@@ -22,6 +25,15 @@ export default function HomePage() {
     const [fundTitle, setFundTitle] = useState('Sample Holdings');
     const [isLoading, setIsLoading] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [chartType, setChartType] = useState<'bubble' | 'treemap'>('bubble');
+
+    const sectors = useMemo(() => [...new Set(chartData.map((item) => item.group))], [chartData]);
+    const sectorColorMap = useMemo(() => buildSectorColorMap(sectors), [sectors]);
+
+    const chartTypeOptions: Array<{ label: string; value: 'bubble' | 'treemap' }> = [
+        { label: 'Bubble Chart', value: 'bubble' },
+        { label: 'Treemap', value: 'treemap' },
+    ];
 
     const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -88,12 +100,47 @@ export default function HomePage() {
 
             <div className="mb-2 text-center text-lg font-semibold text-slate-800">{fundTitle}</div>
 
+            <div className="mb-4 rounded-xl bg-white p-4 shadow-sm">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-slate-700">Sector Legend</div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="chart-type" className="text-sm font-medium text-slate-700">
+                            View
+                        </label>
+                        <Dropdown
+                            id="chart-type"
+                            value={chartType}
+                            onChange={(event) => setChartType(event.value as 'bubble' | 'treemap')}
+                            options={chartTypeOptions}
+                            optionLabel="label"
+                            optionValue="value"
+                            className="min-w-48"
+                        />
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {sectors.map((sector) => (
+                        <div key={sector} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700">
+                            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: sectorColorMap[sector] }} />
+                            <span>{sector}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             {isLoading ? (
                 <div className="flex min-h-[320px] items-center justify-center rounded-xl bg-white shadow-sm">
                     <ProgressSpinner strokeWidth="4" />
                 </div>
             ) : (
-                <GroupedBubbleChart data={chartData} />
+                <>
+                    {chartType === 'bubble' ? (
+                        <GroupedBubbleChart data={chartData} sectorColorMap={sectorColorMap} />
+                    ) : (
+                        <HoldingsTreemap data={chartData} sectorColorMap={sectorColorMap} />
+                    )}
+                </>
             )}
         </div>
     );

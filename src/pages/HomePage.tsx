@@ -7,12 +7,12 @@ import GroupedBubbleChart, { type BubbleDatum } from '../components/GroupedBubbl
 import { fetchEtfHoldingsFromGemini } from '../services/geminiHoldings';
 
 const defaultBubbleData: BubbleDatum[] = [
-    { name: 'AAPL', group: 'Technology', value: 7.2 },
-    { name: 'MSFT', group: 'Technology', value: 6.8 },
-    { name: 'NVDA', group: 'Technology', value: 5.4 },
-    { name: 'AMZN', group: 'Consumer Discretionary', value: 3.6 },
-    { name: 'META', group: 'Communication Services', value: 2.9 },
-    { name: 'GOOGL', group: 'Communication Services', value: 2.5 },
+    { ticker: 'AAPL', companyName: 'Apple Inc.', group: 'Technology', value: 7.2 },
+    { ticker: 'MSFT', companyName: 'Microsoft Corporation', group: 'Technology', value: 6.8 },
+    { ticker: 'NVDA', companyName: 'NVIDIA Corporation', group: 'Technology', value: 5.4 },
+    { ticker: 'AMZN', companyName: 'Amazon.com, Inc.', group: 'Consumer Discretionary', value: 3.6 },
+    { ticker: 'META', companyName: 'Meta Platforms, Inc.', group: 'Communication Services', value: 2.9 },
+    { ticker: 'GOOGL', companyName: 'Alphabet Inc.', group: 'Communication Services', value: 2.5 },
 ];
 
 export default function HomePage() {
@@ -37,7 +37,8 @@ export default function HomePage() {
         try {
             const response = await fetchEtfHoldingsFromGemini({ ticker, apiKey });
             const nextData: BubbleDatum[] = response.holdings.map((holding) => ({
-                name: holding.ticker,
+                ticker: holding.ticker,
+                companyName: holding.name,
                 group: holding.sector || 'Other',
                 value: holding.weightPercent,
             }));
